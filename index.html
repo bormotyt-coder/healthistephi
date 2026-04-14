@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#e89bb4" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="HealthiStephi" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <title>HealthiStephi</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; overscroll-behavior-y: contain; }
+    body {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      background: linear-gradient(180deg, #fef5f8 0%, #fce4ec 100%);
+      color: #4a2c3a;
+      min-height: 100vh;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+    .body-font { font-family: 'Nunito', -apple-system, sans-serif; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    button:focus { outline: none; }
+    input, textarea { font-family: inherit; -webkit-appearance: none; border-radius: 0; }
+    input:focus, textarea:focus { outline: none; }
+    .shadow-soft { box-shadow: 0 4px 20px rgba(200, 120, 150, 0.12); }
+    .shadow-pop { box-shadow: 0 8px 30px rgba(200, 120, 150, 0.2); }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp 0.4s ease-out; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .slide-up { animation: slideUp 0.35s ease-out; }
+    /* iOS safe area */
+    .safe-bottom { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+    .safe-top { padding-top: calc(32px + env(safe-area-inset-top)); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module">
+// ============================================================
+// HealthiStephi — Personal rehab + training companion
+// ============================================================
+
+const { useState, useEffect, useRef } = React;
+
+// ⚠️ UPDATE THIS after deploying to Vercel. For local dev/same-origin, "/api/chat" works.
+const API_ENDPOINT = "/api/chat";
+
+const STORAGE_KEY = "healthistephi-data-v1";
+
+const MRI_CONTEXT = `Patient: Stephanie, 38F. MRI findings (Apr 2026):
+- Partial-thickness articular-surface tear of right supraspinatus tendon at footprint (posterior fibers, ~4x2x9mm), possible minimal extension into anterior infraspinatus
+- Supraspinatus + infraspinatus tendinosis, mild subscapularis tendinosis
+- Adhesive capsulitis (frozen shoulder) — thickening of inferior axillary pouch and coracohumeral ligament, rotator interval fluid, mild glenohumeral effusion
+- Long head of biceps tendinosis, intact attachment
+- Mild AC joint arthropathy, minimal subacromial–subdeltoid bursitis
+- Management: physio (non-surgical)
+Goals: fat loss, general fitness, protect and rehab the right shoulder.
+Equipment available: dumbbells, one cable machine, one Smith machine, basic cardio machines. Nothing else.`;
+
+const PLAN = {
+  mobility: {
+    name: "Daily Mobility & Rehab",
+    subtitle: "10 min • every day, even rest days",
+    exercises: [
+      { id: "m1", name: "Pendulum Swings", sets: "30 sec each direction", desc: "Lean forward, let your right arm hang loose, draw small circles. Gravity does the work — no muscle. The safest frozen-shoulder opener there is.", video: "https://www.youtube.com/watch?v=dTIU1v7a5ac" },
+      { id: "m2", name: "Wall Walks (Finger Ladder)", sets: "3 reps, hold 10 sec at top", desc: "Face a wall, walk your fingers up as high as tolerable. This is your weekly benchmark — mark it with tape.", video: "https://www.youtube.com/watch?v=_8Ig8yx5O7s", isBenchmark: true },
+      { id: "m3", name: "Cross-Body Stretch", sets: "30 sec × 3", desc: "Pull your right arm across your chest with your left hand. Feel the stretch in the back of the shoulder.", video: "https://www.youtube.com/watch?v=_TwjYSqYtwE" },
+      { id: "m4", name: "Doorway Pec Stretch", sets: "30 sec × 2", desc: "Forearm on a door frame, gently step through. Opens the front of the shoulder.", video: "https://www.youtube.com/watch?v=BrhLNjkWNa0" },
+      { id: "m5", name: "Banded External Rotations", sets: "2 × 15, very light", desc: "The single most important exercise here. Elbow glued to your side, rotate forearm outward against a light band.", video: "https://www.youtube.com/watch?v=CEqeaPWWMzU" },
+      { id: "m6", name: "Scapular Wall Slides", sets: "2 × 10", desc: "Back flat to a wall, arms in a 'W,' slide them up toward a 'Y.' Only as far as pain-free.", video: "https://www.youtube.com/watch?v=bC2dlEp-jyA" },
+      { id: "m7", name: "Prone Y-T-W Raises", sets: "2 × 8 each letter", desc: "Face down on a bench, form each letter with your arms. No weight or 1–2kg dumbbells. Builds lower traps and rear delts.", video: "https://www.youtube.com/watch?v=vTVxnm6cfrE" },
+    ],
+  },
+  days: [
+    {
+      id: "day1",
+      name: "Lower + Core",
+      subtitle: "Big muscles, big calorie burn, zero shoulder stress",
+      icon: "🦵",
+      exercises: [
+        { id: "d1e1", name: "Dumbbell Goblet Squat", sets: 4, reps: "10", desc: "Hold one dumbbell at your chest with both hands. Feet shoulder-width, sit down and back. No bar on your shoulders.", video: "https://www.youtube.com/watch?v=MxsFDhcyFyE", tracks: true },
+        { id: "d1e2", name: "Smith Machine Romanian Deadlift", sets: 4, reps: "10", desc: "Smith machine makes this way safer for your shoulder than a barbell. Slight knee bend, hinge at the hips, lower bar along your legs, feel the hamstring stretch.", video: "https://www.youtube.com/watch?v=hCDzSR6bW10", tracks: true },
+        { id: "d1e3", name: "Dumbbell Walking Lunges", sets: 3, reps: "12 each leg", desc: "Dumbbells at your sides. If holding them bothers the shoulder, do bodyweight — it's still effective.", video: "https://www.youtube.com/watch?v=L8fvypPrzzs", tracks: true },
+        { id: "d1e4", name: "Smith Machine Hip Thrust", sets: 4, reps: "12", desc: "Shoulder blades on a bench, bar rests on your hips (use a pad!), drive through heels. Best glute builder you can do with this equipment.", video: "https://www.youtube.com/watch?v=LM8XHLYJoYs", tracks: true },
+        { id: "d1e5", name: "Dumbbell Bulgarian Split Squat", sets: 3, reps: "10 each leg", desc: "Back foot on a bench behind you, dumbbells at sides. Brutal but amazing for glutes and quads.", video: "https://www.youtube.com/watch?v=Iwe6AmxVf7o", tracks: true },
+        { id: "d1e6", name: "Dead Bug", sets: 3, reps: "10 each side", desc: "Lie on your back, opposite arm and leg extend slowly. Best core exercise for shoulder injuries — no plank loading.", video: "https://www.youtube.com/watch?v=g_BYB0R-4Ws", tracks: false },
+        { id: "d1e7", name: "Incline Treadmill Walk", sets: 1, reps: "15 min @ 12% incline, 5 kph", desc: "The finisher. Gold-standard fat-loss cardio — easy on joints, easy on the shoulder, hugely effective.", video: "https://www.youtube.com/watch?v=R2bRE1ANP5w", tracks: false },
+      ],
+    },
+    {
+      id: "day2",
+      name: "Pull + Arms",
+      subtitle: "Your rehab day in disguise — pulling heals shoulders",
+      icon: "💪",
+      exercises: [
+        { id: "d2e1", name: "Single-Arm Dumbbell Row", sets: 4, reps: "12 each", desc: "One knee and one hand on a bench, pull the dumbbell up to your hip. The bench support prevents you from yanking with your body.", video: "https://www.youtube.com/watch?v=pYcpY20QaE8", tracks: true },
+        { id: "d2e2", name: "Cable Lat Pulldown (Neutral Grip)", sets: 4, reps: "12", desc: "Use the neutral grip attachment (palms facing each other) — much gentler than wide grip. Pull to upper chest, NOT behind your neck.", video: "https://www.youtube.com/watch?v=EUIri47Epcg", tracks: true },
+        { id: "d2e3", name: "Single-Arm Cable Row", sets: 3, reps: "12 each", desc: "Low pulley, one handle, one arm at a time. Lets you focus without the good arm compensating.", video: "https://www.youtube.com/watch?v=roCP6wCXPqo", tracks: true },
+        { id: "d2e4", name: "Cable Face Pulls", sets: 4, reps: "15", desc: "REHAB GOLD. Rope attachment at upper-chest height, pull toward your face with elbows high. Do these religiously — best rotator cuff exercise ever invented. Keep it light.", video: "https://www.youtube.com/watch?v=rep-qVOkqgk", tracks: true, isHero: true },
+        { id: "d2e5", name: "Dumbbell Hammer Curls", sets: 3, reps: "12", desc: "Neutral grip (thumbs up). Gentler on the biceps tendon than regular curls, which matters with your biceps tendinosis.", video: "https://www.youtube.com/watch?v=dFzUjzfih7k", tracks: true },
+        { id: "d2e6", name: "Cable Rope Curl", sets: 3, reps: "12", desc: "Another neutral-grip biceps option. Constant tension, no strain on the tendon attachment.", video: "https://www.youtube.com/watch?v=kiuVA0gs3EI", tracks: true },
+        { id: "d2e7", name: "Dead Bug", sets: 3, reps: "12 each side", desc: "Keep that core engaged. No shoulder stress.", video: "https://www.youtube.com/watch?v=g_BYB0R-4Ws", tracks: false },
+      ],
+    },
+    {
+      id: "day3",
+      name: "Gentle Push + Lower",
+      subtitle: "Careful pushing, more legs, cardio finish",
+      icon: "🌸",
+      exercises: [
+        { id: "d3e1", name: "Smith Machine Incline Press (Low Angle)", sets: 4, reps: "10", desc: "Set bench to a LOW incline (~15°), Smith machine bar — the fixed path is far safer than free weights for your shoulder. Don't go deep: stop when elbows reach shoulder level, not past. Start VERY light.", video: "https://www.youtube.com/watch?v=8urE8Z8AMQ4", tracks: true, isCareful: true },
+        { id: "d3e2", name: "Cable Chest Fly (Low-to-Mid)", sets: 3, reps: "12", desc: "Pulleys set at waist height, fly up and in. No deep stretch at the bottom — keep the range moderate.", video: "https://www.youtube.com/watch?v=Iwpv2Tb9wVY", tracks: true },
+        { id: "d3e3", name: "Smith Machine Front Squat", sets: 4, reps: "12", desc: "Smith bar on front shoulders (crossed-arms grip). Much kinder to the shoulder than a back squat.", video: "https://www.youtube.com/watch?v=uYumuL_G4wE", tracks: true },
+        { id: "d3e4", name: "Cable Glute Kickback", sets: 3, reps: "15 each", desc: "Ankle strap on low cable. Direct glute work, zero shoulder involvement.", video: "https://www.youtube.com/watch?v=-Eoz0cVFABk", tracks: true },
+        { id: "d3e5", name: "Dumbbell Scaption Raises", sets: 3, reps: "12", desc: "Very light (2–3 kg). Raise arms 30° IN FRONT of your body (not to the sides), thumbs up. Stop at shoulder height — no higher. This replaces lateral raises.", video: "https://www.youtube.com/watch?v=Ey6Wq9NfdKM", tracks: true, isCareful: true },
+        { id: "d3e6", name: "Cable Tricep Rope Pushdown", sets: 4, reps: "12", desc: "Elbows glued to your sides. Hits triceps with zero shoulder stress.", video: "https://www.youtube.com/watch?v=vB5OHsJ3EME", tracks: true },
+        { id: "d3e7", name: "Stairmaster or Bike", sets: 1, reps: "15–20 min steady", desc: "Finisher. Pick whichever you prefer. Avoid the rowing machine — it loads the shoulder.", video: "https://www.youtube.com/watch?v=_XNUJb1CpfE", tracks: false },
+      ],
+    },
+  ],
+};
+
+const AVOID_LIST = [
+  "Overhead pressing (shoulder press, military press, Arnold press)",
+  "Behind-the-neck anything",
+  "Upright rows",
+  "Dips",
+  "Wide-grip bench press",
+  "Lateral raises above shoulder height",
+  "Push-ups (for now)",
+  "Rowing machine / ergometer",
+  "Boxing, heavy bag, burpees",
+  "Barbell back squat",
+];
+
+// ============================================================
+// Persistence (localStorage)
+// ============================================================
+const defaultData = () => ({
+  logs: {},
+  wallWalkHistory: [],
+  currentDayIdx: 0,
+  adjustments: {},
+});
+
+const loadData = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return defaultData();
+};
+
+const saveData = (data) => {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+};
+
+const todayKey = () => new Date().toISOString().slice(0, 10);
+
+// ============================================================
+// AI helper — calls Vercel API route, with client-side retry
+// ============================================================
+const callClaude = async (systemPrompt, userMessage, maxTokens = 800) => {
+  const MAX_CLIENT_RETRIES = 4;
+  let lastError = null;
+
+  for (let attempt = 0; attempt < MAX_CLIENT_RETRIES; attempt++) {
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const textBlock = data.content?.find(b => b.type === "text");
+        if (textBlock?.text) return textBlock.text;
+        lastError = "Empty response from Claude";
+      } else {
+        const err = await response.json().catch(() => ({}));
+        // 4xx errors (except 429) are non-retryable
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          return `Sorry, I hit an error: ${err.error || response.statusText}. Try again in a bit.`;
+        }
+        lastError = err.error || `HTTP ${response.status}`;
+      }
+    } catch (e) {
+      lastError = e.message || "Network error";
+    }
+
+    // Exponential backoff: 500ms, 1s, 2s, 4s
+    if (attempt < MAX_CLIENT_RETRIES - 1) {
+      await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt)));
+    }
+  }
+
+  return `Sorry love, I'm having trouble connecting right now (${lastError}). Try again in a moment?`;
+};
+
+// ============================================================
+// Icons (inline SVG — no library dep)
+// ============================================================
+const Icon = ({ name, size = 20, color = "currentColor", fill = "none", strokeWidth = 2 }) => {
+  const paths = {
+    home: <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2h-4a2 2 0 01-2-2v-4a2 2 0 00-2-2 2 2 0 00-2 2v4a2 2 0 01-2 2H5a2 2 0 01-2-2z" />,
+    calendar: <><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></>,
+    activity: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+    message: <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />,
+    play: <polygon points="5 3 19 12 5 21 5 3" fill={color} />,
+    check: <polyline points="20 6 9 17 4 12" />,
+    chevronRight: <polyline points="9 18 15 12 9 6" />,
+    chevronLeft: <polyline points="15 18 9 12 15 6" />,
+    alert: <><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>,
+    sparkles: <path d="M12 3l1.88 5.76L20 10.5l-5.38 2.88L12 19l-2.62-5.62L4 10.5l5.38-1.74z" />,
+    trending: <><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></>,
+    send: <><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></>,
+    x: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
+    loader: <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />,
+  };
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
+};
+
+// ============================================================
+// Root App
+// ============================================================
+function HealthiStephi() {
+  const [data, setData] = useState(loadData);
+  const [tab, setTab] = useState("home");
+  const [activeWorkout, setActiveWorkout] = useState(null);
+  const [checkIn, setCheckIn] = useState(null);
+
+  useEffect(() => { saveData(data); }, [data]);
+
+  const updateData = (fn) => setData(prev => fn({ ...prev }));
+
+  return (
+    <div style={{ paddingBottom: "calc(90px + env(safe-area-inset-bottom))" }}>
+      {activeWorkout === "mobility" && (
+        <WorkoutScreen workout={PLAN.mobility} isMobility data={data} updateData={updateData} onClose={() => setActiveWorkout(null)} />
+      )}
+      {activeWorkout && activeWorkout !== "mobility" && (
+        <WorkoutScreen workout={PLAN.days.find(d => d.id === activeWorkout)} data={data} updateData={updateData} checkIn={checkIn} onClose={() => { setActiveWorkout(null); setCheckIn(null); }} />
+      )}
+      {checkIn && !activeWorkout && (
+        <CheckInModal onComplete={(ci) => { setCheckIn(ci); setActiveWorkout(PLAN.days[data.currentDayIdx % 3].id); }} onClose={() => setCheckIn(null)} />
+      )}
+
+      {tab === "home" && <HomeTab data={data} updateData={updateData} onStartWorkout={() => setCheckIn({})} onStartMobility={() => setActiveWorkout("mobility")} />}
+      {tab === "plan" && <PlanTab data={data} onSelectDay={(id) => setActiveWorkout(id)} />}
+      {tab === "progress" && <ProgressTab data={data} />}
+      {tab === "coach" && <CoachTab data={data} />}
+
+      <BottomNav tab={tab} setTab={setTab} />
+    </div>
+  );
+}
+
+// ============================================================
+// Home Tab
+// ============================================================
+function HomeTab({ data, updateData, onStartWorkout, onStartMobility }) {
+  const todayLog = data.logs[todayKey()];
+  const dayIdx = data.currentDayIdx % 3;
+  const todayWorkout = PLAN.days[dayIdx];
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const streak = calculateStreak(data.logs);
+
+  return (
+    <div className="fade-up safe-top" style={{ padding: "0 20px 20px" }}>
+      <div style={{ marginBottom: 28 }}>
+        <div className="body-font" style={{ fontSize: 13, color: "#b8708a", letterSpacing: 1, textTransform: "uppercase", fontWeight: 600 }}>{greeting}</div>
+        <h1 style={{ fontSize: 42, margin: "4px 0 0", fontWeight: 600, letterSpacing: -1, color: "#6b3650" }}>HealthiStephi</h1>
+        <div className="body-font" style={{ fontSize: 14, color: "#8b5a70", marginTop: 4, fontStyle: "italic" }}>your pocket coach & shoulder whisperer</div>
+      </div>
+
+      <div className="shadow-soft" style={{ background: "white", borderRadius: 20, padding: 20, marginBottom: 16, display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg, #f8b4c8, #f291b0)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>🌸</div>
+        <div style={{ flex: 1 }}>
+          <div className="body-font" style={{ fontSize: 12, color: "#b8708a", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Current streak</div>
+          <div style={{ fontSize: 26, fontWeight: 600, color: "#6b3650" }}>{streak} {streak === 1 ? "day" : "days"}</div>
+          <div className="body-font" style={{ fontSize: 12, color: "#8b5a70" }}>{streak === 0 ? "Let's get started today" : "Keep it going 💕"}</div>
+        </div>
+      </div>
+
+      <div className="shadow-pop" style={{ background: "linear-gradient(135deg, #ffffff 0%, #fef5f8 100%)", borderRadius: 24, padding: 24, marginBottom: 16, border: "1px solid #f5d5e0" }}>
+        <div className="body-font" style={{ fontSize: 12, color: "#b8708a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Today's session</div>
+        <h2 style={{ fontSize: 32, margin: "6px 0 0", fontWeight: 600, color: "#6b3650" }}>{todayWorkout.icon} {todayWorkout.name}</h2>
+        <div className="body-font" style={{ fontSize: 14, color: "#8b5a70", marginTop: 6, fontStyle: "italic" }}>{todayWorkout.subtitle}</div>
+        <div className="body-font" style={{ fontSize: 13, color: "#8b5a70", marginTop: 10 }}>{todayWorkout.exercises.length} exercises • ~45 min</div>
+        <button onClick={onStartWorkout} className="body-font" style={{ marginTop: 18, width: "100%", background: "linear-gradient(135deg, #e89bb4, #d67a95)", color: "white", padding: 14, borderRadius: 14, fontSize: 16, fontWeight: 700, letterSpacing: 0.3, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Icon name="play" size={18} color="white" /> Start Workout
+        </button>
+      </div>
+
+      <div className="shadow-soft" style={{ background: "white", borderRadius: 20, padding: 20, marginBottom: 16, display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🧘‍♀️</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: "#6b3650" }}>Daily mobility</div>
+          <div className="body-font" style={{ fontSize: 13, color: "#8b5a70" }}>10 min • every day, even rest days</div>
+        </div>
+        <button onClick={onStartMobility} className="body-font" style={{ background: "#fce4ec", color: "#b8336a", padding: "10px 16px", borderRadius: 12, fontSize: 13, fontWeight: 700 }}>Start</button>
+      </div>
+
+      <div style={{ background: "#fff4e5", borderRadius: 16, padding: 16, marginTop: 20, borderLeft: "4px solid #f9b572" }}>
+        <div className="body-font" style={{ fontSize: 13, color: "#8b5a2b", lineHeight: 1.6, display: "flex", gap: 10 }}>
+          <Icon name="alert" size={18} color="#8b5a2b" />
+          <div><strong>Pain rule:</strong> nothing above 3/10. Sharp or pinching = stop immediately. If your shoulder feels worse after a session, message the coach.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Check-in Modal
+// ============================================================
+function CheckInModal({ onComplete, onClose }) {
+  const [pain, setPain] = useState(null);
+  const [energy, setEnergy] = useState(null);
+  const canContinue = pain !== null && energy !== null;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(107, 54, 80, 0.5)", zIndex: 100, display: "flex", alignItems: "flex-end" }}>
+      <div className="slide-up" style={{ background: "linear-gradient(180deg, #fef5f8, white)", width: "100%", borderRadius: "28px 28px 0 0", padding: "28px 24px", maxHeight: "90vh", overflowY: "auto", paddingBottom: "calc(28px + env(safe-area-inset-bottom))" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <div className="body-font" style={{ fontSize: 11, color: "#b8708a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Quick check-in</div>
+            <h2 style={{ fontSize: 28, margin: "4px 0 0", color: "#6b3650", fontWeight: 600 }}>How's your body today?</h2>
+          </div>
+          <button onClick={onClose} style={{ background: "#fce4ec", borderRadius: "50%", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={18} color="#6b3650" /></button>
+        </div>
+        <div className="body-font" style={{ fontSize: 13, color: "#8b5a70", marginBottom: 24, fontStyle: "italic" }}>I'll adjust today's plan based on your answers 💕</div>
+
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: "#6b3650", marginBottom: 4 }}>Right shoulder pain</div>
+          <div className="body-font" style={{ fontSize: 12, color: "#8b5a70", marginBottom: 12 }}>0 = no pain, 10 = unbearable</div>
+          <ScaleSelector value={pain} onChange={setPain} />
+        </div>
+
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: "#6b3650", marginBottom: 4 }}>Energy level</div>
+          <div className="body-font" style={{ fontSize: 12, color: "#8b5a70", marginBottom: 12 }}>1 = exhausted, 10 = crushing it</div>
+          <ScaleSelector value={energy} onChange={setEnergy} />
+        </div>
+
+        <button disabled={!canContinue} onClick={() => onComplete({ shoulderPain: pain, energy })} className="body-font" style={{ width: "100%", background: canContinue ? "linear-gradient(135deg, #e89bb4, #d67a95)" : "#e8c4d0", color: "white", padding: 16, borderRadius: 14, fontSize: 16, fontWeight: 700, opacity: canContinue ? 1 : 0.6 }}>
+          Continue →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ScaleSelector({ value, onChange }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(11, 1fr)", gap: 4 }}>
+      {[0,1,2,3,4,5,6,7,8,9,10].map(n => (
+        <button key={n} onClick={() => onChange(n)} className="body-font"
+          style={{ aspectRatio: "1", borderRadius: 10, background: value === n ? "linear-gradient(135deg, #e89bb4, #d67a95)" : "white", color: value === n ? "white" : "#8b5a70", border: value === n ? "none" : "1px solid #f5d5e0", fontSize: 13, fontWeight: 700 }}>
+          {n}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
+// Workout Screen
+// ============================================================
+function WorkoutScreen({ workout, isMobility, data, updateData, checkIn, onClose }) {
+  const [idx, setIdx] = useState(0);
+  const [aiAdjustment, setAiAdjustment] = useState(null);
+  const [loadingAdjust, setLoadingAdjust] = useState(false);
+  const today = todayKey();
+  const exercises = workout.exercises;
+  const current = exercises[idx];
+  const isLast = idx === exercises.length - 1;
+
+  useEffect(() => {
+    if (!isMobility && checkIn && (checkIn.shoulderPain >= 4 || checkIn.energy <= 4)) {
+      setLoadingAdjust(true);
+      const sys = `You are a warm, encouraging rehab coach for Stephanie. ${MRI_CONTEXT}
+
+Today's planned session is "${workout.name}": ${exercises.map(e => e.name).join(", ")}.
+
+Stephanie reports: shoulder pain ${checkIn.shoulderPain}/10, energy ${checkIn.energy}/10.
+
+Give a SHORT adjustment message (3-4 sentences max). Be warm, use "you." Tell her specifically what to modify today (lighter weight? skip certain exercises? extra mobility?). If pain is high, err on the side of caution. If energy is low, shorter sets are fine. Use emojis sparingly (max 1-2).`;
+      callClaude(sys, "Give me today's adjustment.", 300).then(res => {
+        setAiAdjustment(res);
+        setLoadingAdjust(false);
+        updateData(d => { d.adjustments = { ...d.adjustments, [today]: res }; return d; });
+      });
+    }
+  }, []);
+
+  const logSet = (exId, setIdx, field, value) => {
+    updateData(d => {
+      if (!d.logs[today]) d.logs[today] = { dayId: workout.id, exercises: {}, shoulderPain: checkIn?.shoulderPain, energy: checkIn?.energy };
+      if (!d.logs[today].exercises[exId]) d.logs[today].exercises[exId] = [];
+      if (!d.logs[today].exercises[exId][setIdx]) d.logs[today].exercises[exId][setIdx] = {};
+      d.logs[today].exercises[exId][setIdx][field] = value;
+      return d;
+    });
+  };
+
+  const finishWorkout = () => {
+    updateData(d => {
+      if (!d.logs[today]) d.logs[today] = { dayId: workout.id, exercises: {}, shoulderPain: checkIn?.shoulderPain, energy: checkIn?.energy };
+      d.logs[today].completed = true;
+      if (!isMobility) d.currentDayIdx = d.currentDayIdx + 1;
+      return d;
+    });
+    onClose();
+  };
+
+  const getLastSessionData = (exId) => {
+    const dates = Object.keys(data.logs).filter(k => k !== today && data.logs[k].exercises?.[exId]).sort().reverse();
+    if (dates.length === 0) return null;
+    return data.logs[dates[0]].exercises[exId];
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "linear-gradient(180deg, #fef5f8 0%, #fce4ec 100%)", zIndex: 200, overflowY: "auto" }}>
+      <div style={{ position: "sticky", top: 0, background: "rgba(254, 245, 248, 0.95)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", padding: "calc(16px + env(safe-area-inset-top)) 20px 16px", borderBottom: "1px solid #f5d5e0", zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <button onClick={onClose} style={{ background: "white", borderRadius: 12, padding: "8px 14px", display: "flex", alignItems: "center", gap: 6, color: "#6b3650" }} className="body-font">
+            <Icon name="chevronLeft" size={16} color="#6b3650" /> <span style={{ fontSize: 13, fontWeight: 600 }}>Exit</span>
+          </button>
+          <div className="body-font" style={{ fontSize: 12, color: "#8b5a70", fontWeight: 600 }}>{idx + 1} of {exercises.length}</div>
+        </div>
+        <div style={{ height: 6, background: "#f5d5e0", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${((idx + 1) / exercises.length) * 100}%`, background: "linear-gradient(90deg, #e89bb4, #d67a95)", borderRadius: 10, transition: "width 0.3s" }} />
+        </div>
+      </div>
+
+      <div style={{ padding: "20px 20px 140px" }}>
+        {idx === 0 && (loadingAdjust || aiAdjustment) && (
+          <div className="fade-up shadow-soft" style={{ background: "linear-gradient(135deg, #fff, #fef5f8)", border: "1px solid #f5d5e0", borderRadius: 18, padding: 16, marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Icon name="sparkles" size={16} color="#d67a95" fill="#d67a95" />
+              <span className="body-font" style={{ fontSize: 11, color: "#b8708a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Today's tweak</span>
+            </div>
+            {loadingAdjust ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#8b5a70" }}><Icon name="loader" size={14} color="#8b5a70" /> <span className="body-font" style={{ fontSize: 13 }}>Thinking about your session...</span></div>
+            ) : (
+              <div className="body-font" style={{ fontSize: 14, color: "#6b3650", lineHeight: 1.55 }}>{aiAdjustment}</div>
+            )}
+          </div>
+        )}
+
+        <div key={current.id} className="fade-up shadow-pop" style={{ background: "white", borderRadius: 24, padding: 24 }}>
+          {current.isHero && <div className="body-font" style={{ display: "inline-block", background: "#e8f5e9", color: "#2e7d32", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 20, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>⭐ Rehab gold</div>}
+          {current.isCareful && <div className="body-font" style={{ display: "inline-block", background: "#fff4e5", color: "#c2410c", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 20, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>⚠ Go light & careful</div>}
+          <h2 style={{ fontSize: 26, margin: "0 0 4px", color: "#6b3650", fontWeight: 600, lineHeight: 1.2 }}>{current.name}</h2>
+          <div className="body-font" style={{ fontSize: 13, color: "#b8708a", fontWeight: 600, marginBottom: 14 }}>{isMobility ? current.sets : `${current.sets} sets × ${current.reps}`}</div>
+          <div className="body-font" style={{ fontSize: 14, color: "#6b3650", lineHeight: 1.6, marginBottom: 16, background: "#fef5f8", padding: 14, borderRadius: 14 }}>{current.desc}</div>
+          <a href={current.video} target="_blank" rel="noopener noreferrer" className="body-font" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#fce4ec", color: "#b8336a", padding: 12, borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: "none", marginBottom: 20 }}>
+            <Icon name="play" size={14} color="#b8336a" /> Watch form video
+          </a>
+
+          {!isMobility && current.tracks && <SetTracker exercise={current} lastSession={getLastSessionData(current.id)} onLog={(si, f, v) => logSet(current.id, si, f, v)} currentLogs={data.logs[today]?.exercises?.[current.id] || []} />}
+          {!isMobility && !current.tracks && <div className="body-font" style={{ fontSize: 13, color: "#8b5a70", textAlign: "center", padding: 12, background: "#fef5f8", borderRadius: 12 }}>✓ No tracking needed — just complete it</div>}
+          {isMobility && <div className="body-font" style={{ fontSize: 13, color: "#8b5a70", textAlign: "center", padding: 12, background: "#fef5f8", borderRadius: 12 }}>💖 Breathe through it. Take your time.</div>}
+          {isMobility && current.isBenchmark && <WallWalkInput data={data} updateData={updateData} />}
+        </div>
+      </div>
+
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(254, 245, 248, 0.95)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", padding: "16px 16px calc(16px + env(safe-area-inset-bottom))", display: "flex", gap: 10, borderTop: "1px solid #f5d5e0" }}>
+        <button disabled={idx === 0} onClick={() => setIdx(idx - 1)} className="body-font" style={{ flex: 1, background: "white", color: "#6b3650", padding: 14, borderRadius: 14, fontSize: 15, fontWeight: 700, opacity: idx === 0 ? 0.4 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Icon name="chevronLeft" size={16} color="#6b3650" /> Back
+        </button>
+        {isLast ? (
+          <button onClick={finishWorkout} className="body-font" style={{ flex: 2, background: "linear-gradient(135deg, #a8d8b9, #7fc89a)", color: "white", padding: 14, borderRadius: 14, fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <Icon name="check" size={18} color="white" /> Finish
+          </button>
+        ) : (
+          <button onClick={() => setIdx(idx + 1)} className="body-font" style={{ flex: 2, background: "linear-gradient(135deg, #e89bb4, #d67a95)", color: "white", padding: 14, borderRadius: 14, fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            Next <Icon name="chevronRight" size={16} color="white" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SetTracker({ exercise, lastSession, onLog, currentLogs }) {
+  const numSets = typeof exercise.sets === "number" ? exercise.sets : 3;
+  const sets = Array.from({ length: numSets }, (_, i) => i);
+
+  return (
+    <div>
+      {lastSession && lastSession.length > 0 && (
+        <div className="body-font" style={{ fontSize: 11, color: "#8b5a70", marginBottom: 10, padding: 10, background: "#fef5f8", borderRadius: 10, display: "flex", gap: 6, alignItems: "center" }}>
+          <Icon name="trending" size={12} color="#8b5a70" />
+          <span><strong>Last time:</strong> {lastSession.map(s => `${s.weight || "-"}kg × ${s.reps || "-"}`).join(" · ")}</span>
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="body-font" style={{ display: "grid", gridTemplateColumns: "40px 1fr 1fr 40px", gap: 8, fontSize: 11, color: "#b8708a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, paddingBottom: 4 }}>
+          <div>Set</div><div>Weight (kg)</div><div>Reps</div><div></div>
+        </div>
+        {sets.map(i => {
+          const log = currentLogs[i] || {};
+          const done = log.weight !== undefined && log.weight !== "" && log.reps !== undefined && log.reps !== "";
+          return (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr 1fr 40px", gap: 8, alignItems: "center" }}>
+              <div className="body-font" style={{ fontSize: 14, fontWeight: 700, color: "#6b3650", textAlign: "center" }}>{i + 1}</div>
+              <input type="number" inputMode="decimal" placeholder={lastSession?.[i]?.weight || "—"} value={log.weight || ""} onChange={e => onLog(i, "weight", e.target.value)} className="body-font" style={{ padding: "12px 10px", border: "1px solid #f5d5e0", borderRadius: 10, fontSize: 14, background: "#fef5f8", color: "#6b3650", width: "100%" }} />
+              <input type="number" inputMode="numeric" placeholder={lastSession?.[i]?.reps || "—"} value={log.reps || ""} onChange={e => onLog(i, "reps", e.target.value)} className="body-font" style={{ padding: "12px 10px", border: "1px solid #f5d5e0", borderRadius: 10, fontSize: 14, background: "#fef5f8", color: "#6b3650", width: "100%" }} />
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                {done ? <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#a8d8b9", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="check" size={14} color="white" /></div> : <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f5d5e0" }}></div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WallWalkInput({ data, updateData }) {
+  const [val, setVal] = useState("");
+  const lastEntry = data.wallWalkHistory?.[data.wallWalkHistory.length - 1];
+  const save = () => {
+    if (!val) return;
+    updateData(d => { d.wallWalkHistory = [...(d.wallWalkHistory || []), { date: todayKey(), cm: Number(val) }]; return d; });
+    setVal("");
+  };
+  return (
+    <div style={{ marginTop: 16, padding: 14, background: "linear-gradient(135deg, #e8f5e9, #f0f9f0)", borderRadius: 14 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#2e7d32", marginBottom: 4 }}>📏 Log your wall walk</div>
+      <div className="body-font" style={{ fontSize: 12, color: "#558b2f", marginBottom: 10 }}>How high did your fingers reach? (cm from floor){lastEntry && ` · last: ${lastEntry.cm}cm`}</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input type="number" value={val} onChange={e => setVal(e.target.value)} placeholder="e.g. 180" className="body-font" style={{ flex: 1, padding: 10, border: "1px solid #c8e6c9", borderRadius: 10, fontSize: 14, background: "white" }} />
+        <button onClick={save} className="body-font" style={{ background: "#7fc89a", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700 }}>Save</button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Plan Tab
+// ============================================================
+function PlanTab({ data, onSelectDay }) {
+  return (
+    <div className="fade-up safe-top" style={{ padding: "0 20px 20px" }}>
+      <div className="body-font" style={{ fontSize: 13, color: "#b8708a", letterSpacing: 1, textTransform: "uppercase", fontWeight: 600 }}>Your plan</div>
+      <h1 style={{ fontSize: 36, margin: "4px 0 4px", fontWeight: 600, color: "#6b3650" }}>3 days a week</h1>
+      <div className="body-font" style={{ fontSize: 14, color: "#8b5a70", marginBottom: 24, fontStyle: "italic" }}>built for your shoulder, your gym, your goals</div>
+
+      {PLAN.days.map((day, i) => (
+        <div key={day.id} onClick={() => onSelectDay(day.id)} className="shadow-soft" style={{ background: "white", borderRadius: 20, padding: 20, marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ fontSize: 36 }}>{day.icon}</div>
+            <div style={{ flex: 1 }}>
+              <div className="body-font" style={{ fontSize: 11, color: "#b8708a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Day {i + 1}</div>
+              <div style={{ fontSize: 22, fontWeight: 600, color: "#6b3650" }}>{day.name}</div>
+              <div className="body-font" style={{ fontSize: 12, color: "#8b5a70", fontStyle: "italic" }}>{day.subtitle}</div>
+              <div className="body-font" style={{ fontSize: 12, color: "#b8708a", marginTop: 6 }}>{day.exercises.length} exercises</div>
+            </div>
+            <Icon name="chevronRight" size={20} color="#d67a95" />
+          </div>
+        </div>
+      ))}
+
+      <div style={{ background: "#fff", borderRadius: 20, padding: 20, marginTop: 8, borderLeft: "4px solid #e57373" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#6b3650", marginBottom: 10 }}>❌ Things to avoid (for now)</div>
+        <ul className="body-font" style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "#8b5a70", lineHeight: 1.8 }}>
+          {AVOID_LIST.map(a => <li key={a}>{a}</li>)}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Progress Tab
+// ============================================================
+function ProgressTab({ data }) {
+  const logs = Object.entries(data.logs).sort((a, b) => b[0].localeCompare(a[0]));
+  const completedCount = logs.filter(([_, l]) => l.completed).length;
+  const wallWalks = data.wallWalkHistory || [];
+
+  return (
+    <div className="fade-up safe-top" style={{ padding: "0 20px 20px" }}>
+      <div className="body-font" style={{ fontSize: 13, color: "#b8708a", letterSpacing: 1, textTransform: "uppercase", fontWeight: 600 }}>Your progress</div>
+      <h1 style={{ fontSize: 36, margin: "4px 0 20px", fontWeight: 600, color: "#6b3650" }}>You're doing amazing</h1>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+        <div className="shadow-soft" style={{ background: "white", borderRadius: 18, padding: 18 }}>
+          <div className="body-font" style={{ fontSize: 11, color: "#b8708a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Sessions</div>
+          <div style={{ fontSize: 34, fontWeight: 600, color: "#6b3650" }}>{completedCount}</div>
+          <div className="body-font" style={{ fontSize: 11, color: "#8b5a70" }}>completed</div>
+        </div>
+        <div className="shadow-soft" style={{ background: "white", borderRadius: 18, padding: 18 }}>
+          <div className="body-font" style={{ fontSize: 11, color: "#b8708a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Wall walk</div>
+          <div style={{ fontSize: 34, fontWeight: 600, color: "#6b3650" }}>{wallWalks.length > 0 ? `${wallWalks[wallWalks.length - 1].cm}` : "—"}<span style={{ fontSize: 16, color: "#8b5a70" }}> cm</span></div>
+          <div className="body-font" style={{ fontSize: 11, color: "#8b5a70" }}>{wallWalks.length >= 2 ? `${wallWalks[wallWalks.length - 1].cm - wallWalks[0].cm >= 0 ? "+" : ""}${wallWalks[wallWalks.length - 1].cm - wallWalks[0].cm}cm total` : "latest reach"}</div>
+        </div>
+      </div>
+
+      {wallWalks.length > 1 && <WallWalkChart data={wallWalks} />}
+
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 20, fontWeight: 600, color: "#6b3650", marginBottom: 12 }}>Recent sessions</div>
+        {logs.length === 0 ? (
+          <div className="body-font" style={{ background: "white", borderRadius: 16, padding: 24, textAlign: "center", color: "#8b5a70", fontSize: 14 }}>No sessions yet — today's the day 💕</div>
+        ) : logs.slice(0, 10).map(([date, log]) => {
+          const dayInfo = PLAN.days.find(d => d.id === log.dayId);
+          return (
+            <div key={date} className="shadow-soft" style={{ background: "white", borderRadius: 14, padding: 14, marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 26 }}>{dayInfo?.icon || "🧘‍♀️"}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#6b3650" }}>{dayInfo?.name || "Mobility"}</div>
+                <div className="body-font" style={{ fontSize: 11, color: "#8b5a70" }}>{formatDate(date)} · shoulder pain {log.shoulderPain ?? "—"}/10</div>
+              </div>
+              {log.completed && <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#a8d8b9", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="check" size={14} color="white" /></div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WallWalkChart({ data }) {
+  const max = Math.max(...data.map(d => d.cm));
+  const min = Math.min(...data.map(d => d.cm));
+  const range = max - min || 1;
+  return (
+    <div className="shadow-soft" style={{ background: "white", borderRadius: 18, padding: 18, marginTop: 4 }}>
+      <div style={{ fontSize: 15, fontWeight: 600, color: "#6b3650", marginBottom: 4 }}>📏 Wall walk trend</div>
+      <div className="body-font" style={{ fontSize: 11, color: "#8b5a70", marginBottom: 14 }}>your shoulder mobility over time</div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 100 }}>
+        {data.slice(-12).map((d, i) => {
+          const h = ((d.cm - min) / range) * 85 + 15;
+          return <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}><div style={{ width: "100%", height: `${h}%`, background: "linear-gradient(180deg, #e89bb4, #d67a95)", borderRadius: "6px 6px 0 0", minHeight: 4 }} /></div>;
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Coach Tab
+// ============================================================
+function CoachTab({ data }) {
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: "Hi Stephi 💕 I'm your coach. I know your MRI, your plan, and everything you've logged. Ask me anything — about an exercise, a pain, a substitution, whatever's on your mind." }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, loading]);
+
+  const recentSummary = () => {
+    const recent = Object.entries(data.logs).sort((a,b) => b[0].localeCompare(a[0])).slice(0, 5);
+    if (recent.length === 0) return "No workouts logged yet.";
+    return recent.map(([date, log]) => `${date}: ${log.dayId || "mobility"}, pain ${log.shoulderPain ?? "?"}/10${log.completed ? " ✓" : ""}`).join("; ");
+  };
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: "user", content: input };
+    setMessages(m => [...m, userMsg]);
+    setInput("");
+    setLoading(true);
+
+    const sys = `You are HealthiStephi's coach — warm, encouraging, knowledgeable. Talk to Stephanie like a friend who happens to be a physio + trainer. Use "you." Keep responses conversational and under 150 words unless she asks for detail. Use emojis VERY sparingly.
+
+${MRI_CONTEXT}
+
+HER PLAN (3 days/week):
+${PLAN.days.map(d => `${d.name}: ${d.exercises.map(e => e.name).join(", ")}`).join("\n")}
+
+DAILY MOBILITY: ${PLAN.mobility.exercises.map(e => e.name).join(", ")}
+
+THINGS TO AVOID: ${AVOID_LIST.join(", ")}
+
+RECENT SESSIONS: ${recentSummary()}
+
+When she asks about substitutions, remember her equipment is LIMITED (dumbbells, one cable machine, one Smith machine, cardio machines) — only suggest things she can actually do. When she asks about pain, ALWAYS err on the side of caution. When in doubt, tell her to message her physio. Never prescribe medication.`;
+
+    const history = messages.concat(userMsg).map(m => `${m.role === "user" ? "Stephanie" : "Coach"}: ${m.content}`).join("\n\n");
+    const reply = await callClaude(sys, history, 500);
+    setMessages(m => [...m, { role: "assistant", content: reply }]);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fade-up safe-top" style={{ padding: "0 20px 20px", height: "100vh", height: "100dvh", display: "flex", flexDirection: "column" }}>
+      <div>
+        <div className="body-font" style={{ fontSize: 13, color: "#b8708a", letterSpacing: 1, textTransform: "uppercase", fontWeight: 600 }}>Ask the coach</div>
+        <h1 style={{ fontSize: 32, margin: "4px 0 16px", fontWeight: 600, color: "#6b3650" }}>I'm here to help 💕</h1>
+      </div>
+
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", paddingBottom: 10, marginBottom: 100 }}>
+        {messages.map((m, i) => (
+          <div key={i} className="fade-up" style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 12 }}>
+            <div className="body-font" style={{ maxWidth: "85%", background: m.role === "user" ? "linear-gradient(135deg, #e89bb4, #d67a95)" : "white", color: m.role === "user" ? "white" : "#6b3650", padding: "12px 16px", borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap", boxShadow: "0 2px 10px rgba(200,120,150,0.1)" }}>{m.content}</div>
+          </div>
+        ))}
+        {loading && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#8b5a70", marginLeft: 10 }}><Icon name="loader" size={14} color="#8b5a70" /><span className="body-font" style={{ fontSize: 13, fontStyle: "italic" }}>thinking...</span></div>}
+      </div>
+
+      <div style={{ position: "fixed", bottom: "calc(90px + env(safe-area-inset-bottom))", left: 20, right: 20, background: "white", borderRadius: 16, padding: 6, display: "flex", gap: 6, alignItems: "center", boxShadow: "0 4px 20px rgba(200,120,150,0.15)" }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Ask me anything..." className="body-font" style={{ flex: 1, border: "none", padding: "12px 14px", fontSize: 14, background: "transparent", color: "#6b3650" }} />
+        <button onClick={send} disabled={!input.trim() || loading} style={{ background: "linear-gradient(135deg, #e89bb4, #d67a95)", color: "white", width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", opacity: (!input.trim() || loading) ? 0.5 : 1 }}>
+          <Icon name="send" size={16} color="white" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Bottom Nav
+// ============================================================
+function BottomNav({ tab, setTab }) {
+  const items = [
+    { id: "home", icon: "home", label: "Today" },
+    { id: "plan", icon: "calendar", label: "Plan" },
+    { id: "progress", icon: "activity", label: "Progress" },
+    { id: "coach", icon: "message", label: "Coach" },
+  ];
+  return (
+    <div className="safe-bottom" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderTop: "1px solid #f5d5e0", display: "flex", padding: "10px 8px 0", zIndex: 50 }}>
+      {items.map(it => {
+        const active = tab === it.id;
+        return (
+          <button key={it.id} onClick={() => setTab(it.id)} className="body-font" style={{ flex: 1, background: "transparent", padding: "8px 4px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, color: active ? "#d67a95" : "#b8a0ae" }}>
+            <Icon name={it.icon} size={20} color={active ? "#d67a95" : "#b8a0ae"} strokeWidth={active ? 2.5 : 2} />
+            <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{it.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+function calculateStreak(logs) {
+  const dates = Object.keys(logs).filter(d => logs[d].completed).sort().reverse();
+  if (dates.length === 0) return 0;
+  let streak = 1;
+  let prev = new Date(dates[0]);
+  for (let i = 1; i < dates.length; i++) {
+    const curr = new Date(dates[i]);
+    const diff = Math.round((prev - curr) / (1000 * 60 * 60 * 24));
+    if (diff <= 2) { streak++; prev = curr; } else break;
+  }
+  return streak;
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const diff = Math.round((today - d) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 7) return `${diff} days ago`;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<HealthiStephi />);
+  </script>
+</body>
+</html>
