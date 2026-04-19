@@ -249,6 +249,7 @@ function HealthiStephi() {
   const [tab, setTab] = useState("home");
   const [activeWorkout, setActiveWorkout] = useState(null);
   const [checkIn, setCheckIn] = useState(null);
+  const [showCustomLog, setShowCustomLog] = useState(false);
 
   useEffect(() => { saveData(data); }, [data]);
 
@@ -265,8 +266,11 @@ function HealthiStephi() {
       {checkIn && !activeWorkout && (
         <CheckInModal onComplete={(ci) => { setCheckIn(ci); setActiveWorkout(PLAN.days[data.currentDayIdx % 3].id); }} onClose={() => setCheckIn(null)} />
       )}
+      {showCustomLog && (
+        <CustomActivityModal data={data} updateData={updateData} onClose={() => setShowCustomLog(false)} />
+      )}
 
-      {tab === "home" && <HomeTab data={data} updateData={updateData} onStartWorkout={() => setCheckIn({})} onStartMobility={() => setActiveWorkout("mobility")} />}
+      {tab === "home" && <HomeTab data={data} updateData={updateData} onStartWorkout={() => setCheckIn({})} onStartMobility={() => setActiveWorkout("mobility")} onLogCustom={() => setShowCustomLog(true)} />}
       {tab === "plan" && <PlanTab data={data} onSelectDay={(id) => setActiveWorkout(id)} />}
       {tab === "progress" && <ProgressTab data={data} />}
       {tab === "coach" && <CoachTab data={data} />}
@@ -279,7 +283,7 @@ function HealthiStephi() {
 // ============================================================
 // Home Tab
 // ============================================================
-function HomeTab({ data, updateData, onStartWorkout, onStartMobility }) {
+function HomeTab({ data, updateData, onStartWorkout, onStartMobility, onLogCustom }) {
   const todayLog = data.logs[todayKey()];
   const dayIdx = data.currentDayIdx % 3;
   const todayWorkout = PLAN.days[dayIdx];
@@ -321,6 +325,16 @@ function HomeTab({ data, updateData, onStartWorkout, onStartMobility }) {
           <div className="body-font" style={{ fontSize: 13, color: "#8b5a70" }}>10 min • every day, even rest days</div>
         </div>
         <button onClick={onStartMobility} className="body-font" style={{ background: "#fce4ec", color: "#b8336a", padding: "10px 16px", borderRadius: 12, fontSize: 13, fontWeight: 700 }}>Start</button>
+      </div>
+
+      {/* Log other activity */}
+      <div className="shadow-soft" style={{ background: "white", borderRadius: 20, padding: 20, marginBottom: 16, display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: "#e3f2fd", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🏊‍♀️</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: "#6b3650" }}>Log other activity</div>
+          <div className="body-font" style={{ fontSize: 13, color: "#8b5a70" }}>Swimming, walking, yoga, anything</div>
+        </div>
+        <button onClick={onLogCustom} className="body-font" style={{ background: "#e3f2fd", color: "#1565c0", padding: "10px 16px", borderRadius: 12, fontSize: 13, fontWeight: 700 }}>Log</button>
       </div>
 
       <div style={{ background: "#fff4e5", borderRadius: 16, padding: 16, marginTop: 20, borderLeft: "4px solid #f9b572" }}>
@@ -382,6 +396,113 @@ function ScaleSelector({ value, onChange }) {
           {n}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ============================================================
+// Custom Activity Modal
+// ============================================================
+const ACTIVITY_PRESETS = [
+  { label: "🏊‍♀️ Swimming", value: "Swimming" },
+  { label: "🚶‍♀️ Walking", value: "Walking" },
+  { label: "🧘‍♀️ Yoga", value: "Yoga" },
+  { label: "🚴‍♀️ Cycling", value: "Cycling" },
+  { label: "🏃‍♀️ Running", value: "Running" },
+  { label: "💃 Dance", value: "Dance" },
+  { label: "🥾 Hiking", value: "Hiking" },
+  { label: "✏️ Other", value: "" },
+];
+
+function CustomActivityModal({ data, updateData, onClose }) {
+  const [activity, setActivity] = useState("");
+  const [customName, setCustomName] = useState("");
+  const [duration, setDuration] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const activityName = activity || customName;
+  const canSave = activityName.trim() && duration;
+
+  const save = () => {
+    if (!canSave) return;
+    const today = todayKey();
+    updateData(d => {
+      if (!d.logs[today]) d.logs[today] = { exercises: {} };
+      if (!d.logs[today].customActivities) d.logs[today].customActivities = [];
+      d.logs[today].customActivities.push({
+        name: activityName.trim(),
+        duration: Number(duration),
+        notes: notes.trim(),
+        time: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+      });
+      d.logs[today].completed = true;
+      return d;
+    });
+    setSaved(true);
+    setTimeout(onClose, 1200);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(107, 54, 80, 0.5)", zIndex: 100, display: "flex", alignItems: "flex-end" }}>
+      <div className="slide-up" style={{ background: "linear-gradient(180deg, #fef5f8, white)", width: "100%", borderRadius: "28px 28px 0 0", padding: "28px 24px", maxHeight: "90vh", overflowY: "auto", paddingBottom: "calc(28px + env(safe-area-inset-bottom))" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <div className="body-font" style={{ fontSize: 11, color: "#b8708a", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Off-plan activity</div>
+            <h2 style={{ fontSize: 28, margin: "4px 0 0", color: "#6b3650", fontWeight: 600 }}>What did you do?</h2>
+          </div>
+          <button onClick={onClose} style={{ background: "#fce4ec", borderRadius: "50%", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={18} color="#6b3650" /></button>
+        </div>
+
+        {saved ? (
+          <div className="fade-up" style={{ textAlign: "center", padding: "40px 0" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+            <div style={{ fontSize: 22, fontWeight: 600, color: "#6b3650" }}>Logged!</div>
+            <div className="body-font" style={{ fontSize: 14, color: "#8b5a70", marginTop: 6 }}>Streak updated. Nice work 💕</div>
+          </div>
+        ) : (
+          <>
+            <div className="body-font" style={{ fontSize: 13, color: "#8b5a70", marginBottom: 16, fontStyle: "italic" }}>This counts toward your streak — every bit of movement matters</div>
+
+            {/* Preset grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
+              {ACTIVITY_PRESETS.map(p => (
+                <button key={p.label} onClick={() => { setActivity(p.value); setCustomName(""); }} className="body-font"
+                  style={{ padding: "12px 10px", borderRadius: 12, fontSize: 14, fontWeight: 600, textAlign: "left",
+                    background: activity === p.value && p.value ? "linear-gradient(135deg, #e89bb4, #d67a95)" : "white",
+                    color: activity === p.value && p.value ? "white" : "#6b3650",
+                    border: activity === p.value && p.value ? "none" : "1px solid #f5d5e0" }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom name input (shows when "Other" is selected) */}
+            {activity === "" && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="body-font" style={{ fontSize: 13, fontWeight: 600, color: "#6b3650", marginBottom: 6 }}>Activity name</div>
+                <input value={customName} onChange={e => setCustomName(e.target.value)} placeholder="e.g. Pilates, stretching..." className="body-font" style={{ width: "100%", padding: 12, border: "1px solid #f5d5e0", borderRadius: 12, fontSize: 14, background: "#fef5f8", color: "#6b3650" }} />
+              </div>
+            )}
+
+            {/* Duration */}
+            <div style={{ marginBottom: 16 }}>
+              <div className="body-font" style={{ fontSize: 13, fontWeight: 600, color: "#6b3650", marginBottom: 6 }}>Duration (minutes)</div>
+              <input type="number" inputMode="numeric" value={duration} onChange={e => setDuration(e.target.value)} placeholder="e.g. 30" className="body-font" style={{ width: "100%", padding: 12, border: "1px solid #f5d5e0", borderRadius: 12, fontSize: 14, background: "#fef5f8", color: "#6b3650" }} />
+            </div>
+
+            {/* Notes */}
+            <div style={{ marginBottom: 20 }}>
+              <div className="body-font" style={{ fontSize: 13, fontWeight: 600, color: "#6b3650", marginBottom: 6 }}>Notes <span style={{ fontWeight: 400, color: "#b8708a" }}>(optional)</span></div>
+              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="How did it feel? Shoulder ok?" className="body-font" style={{ width: "100%", padding: 12, border: "1px solid #f5d5e0", borderRadius: 12, fontSize: 14, background: "#fef5f8", color: "#6b3650" }} />
+            </div>
+
+            <button disabled={!canSave} onClick={save} className="body-font" style={{ width: "100%", background: canSave ? "linear-gradient(135deg, #e89bb4, #d67a95)" : "#e8c4d0", color: "white", padding: 16, borderRadius: 14, fontSize: 16, fontWeight: 700, opacity: canSave ? 1 : 0.6 }}>
+              Log Activity
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -477,9 +598,9 @@ Give a SHORT adjustment message (3-4 sentences max). Be warm, use "you." Tell he
           <h2 style={{ fontSize: 26, margin: "0 0 4px", color: "#6b3650", fontWeight: 600, lineHeight: 1.2 }}>{current.name}</h2>
           <div className="body-font" style={{ fontSize: 13, color: "#b8708a", fontWeight: 600, marginBottom: 14 }}>{isMobility ? current.sets : `${current.sets} sets × ${current.reps}`}</div>
           <div className="body-font" style={{ fontSize: 14, color: "#6b3650", lineHeight: 1.6, marginBottom: 16, background: "#fef5f8", padding: 14, borderRadius: 14 }}>{current.desc}</div>
-          <a href={current.video} target="_blank" rel="noopener noreferrer" className="body-font" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#fce4ec", color: "#b8336a", padding: 12, borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: "none", marginBottom: 20 }}>
+          <button onClick={() => window.open(current.video, "_blank")} className="body-font" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#fce4ec", color: "#b8336a", padding: 12, borderRadius: 12, fontSize: 14, fontWeight: 700, marginBottom: 20 }}>
             <Icon name="play" size={14} color="#b8336a" /> Watch form video
-          </a>
+          </button>
 
           {!isMobility && current.tracks && <SetTracker exercise={current} lastSession={getLastSessionData(current.id)} onLog={(si, f, v) => logSet(current.id, si, f, v)} currentLogs={data.logs[today]?.exercises?.[current.id] || []} />}
           {!isMobility && !current.tracks && <div className="body-font" style={{ fontSize: 13, color: "#8b5a70", textAlign: "center", padding: 12, background: "#fef5f8", borderRadius: 12 }}>✓ No tracking needed — just complete it</div>}
@@ -630,12 +751,18 @@ function ProgressTab({ data }) {
           <div className="body-font" style={{ background: "white", borderRadius: 16, padding: 24, textAlign: "center", color: "#8b5a70", fontSize: 14 }}>No sessions yet — today's the day 💕</div>
         ) : logs.slice(0, 10).map(([date, log]) => {
           const dayInfo = PLAN.days.find(d => d.id === log.dayId);
+          const customs = log.customActivities || [];
+          const hasCustomOnly = !dayInfo && customs.length > 0;
+          const displayName = dayInfo?.name || (customs.length > 0 ? customs.map(c => c.name).join(", ") : "Mobility");
+          const displayIcon = dayInfo?.icon || (customs.length > 0 ? "🏃‍♀️" : "🧘‍♀️");
+          const subtitle = customs.length > 0 && dayInfo ? `+ ${customs.map(c => c.name).join(", ")}` : null;
           return (
             <div key={date} className="shadow-soft" style={{ background: "white", borderRadius: 14, padding: 14, marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ fontSize: 26 }}>{dayInfo?.icon || "🧘‍♀️"}</div>
+              <div style={{ fontSize: 26 }}>{displayIcon}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: "#6b3650" }}>{dayInfo?.name || "Mobility"}</div>
-                <div className="body-font" style={{ fontSize: 11, color: "#8b5a70" }}>{formatDate(date)} · shoulder pain {log.shoulderPain ?? "—"}/10</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "#6b3650" }}>{displayName}</div>
+                {subtitle && <div className="body-font" style={{ fontSize: 11, color: "#b8708a" }}>{subtitle}</div>}
+                <div className="body-font" style={{ fontSize: 11, color: "#8b5a70" }}>{formatDate(date)}{log.shoulderPain != null ? ` · shoulder pain ${log.shoulderPain}/10` : ""}{customs.length > 0 && !dayInfo ? ` · ${customs.reduce((s, c) => s + c.duration, 0)} min` : ""}</div>
               </div>
               {log.completed && <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#a8d8b9", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="check" size={14} color="white" /></div>}
             </div>
