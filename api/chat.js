@@ -77,7 +77,7 @@ export default async function handler(req, res) {
   }
 
   const anthropicBody = {
-    model: body.model || "claude-sonnet-4-20250514",
+    model: body.model || "claude-sonnet-4-6",
     max_tokens: Math.min(body.max_tokens || 800, 2000),
     messages: body.messages,
     ...(body.system && { system: body.system }),
